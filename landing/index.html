@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InventarioSmart - Sistema de Inventario para tu Rubro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f7fa;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Header */
+        header {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #667eea;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 30px;
+        }
+        
+        .nav-links a {
+            text-decoration: none;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        /* Hero */
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 80px 0;
+            text-align: center;
+        }
+        
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+        
+        .hero p {
+            font-size: 1.3rem;
+            opacity: 0.95;
+            max-width: 600px;
+            margin: 0 auto 40px;
+        }
+        
+        /* Rubros Selector */
+        .rubros-section {
+            padding: 60px 0;
+        }
+        
+        .rubros-section h2 {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        .rubros-subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 50px;
+        }
+        
+        .rubros-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+        }
+        
+        .rubro-card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .rubro-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px rgba(102,126,234,0.2);
+            border-color: #667eea;
+        }
+        
+        .rubro-card.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea08 0%, #764ba208 100%);
+        }
+        
+        .rubro-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+        
+        .rubro-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .rubro-card p {
+            color: #666;
+            font-size: 0.95rem;
+            margin-bottom: 15px;
+        }
+        
+        .rubro-features {
+            list-style: none;
+            font-size: 0.85rem;
+            color: #555;
+        }
+        
+        .rubro-features li {
+            padding: 3px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+        
+        .rubro-features li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        .popular-badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        /* Pricing Section */
+        .pricing-section {
+            background: white;
+            padding: 80px 0;
+        }
+        
+        .pricing-section h2 {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 50px;
+        }
+        
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .pricing-card {
+            background: #f8f9fa;
+            border-radius: 16px;
+            padding: 35px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+        }
+        
+        .pricing-card.featured {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: scale(1.05);
+        }
+        
+        .pricing-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 10px;
+        }
+        
+        .price {
+            font-size: 3rem;
+            font-weight: 800;
+            margin: 20px 0;
+        }
+        
+        .price span {
+            font-size: 1rem;
+            font-weight: 400;
+            opacity: 0.8;
+        }
+        
+        .pricing-features {
+            list-style: none;
+            text-align: left;
+            margin: 25px 0;
+        }
+        
+        .pricing-features li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+        
+        .pricing-features li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: inherit;
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 15px 40px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102,126,234,0.4);
+        }
+        
+        .pricing-card.featured .btn-primary {
+            background: white;
+            color: #667eea;
+        }
+        
+        /* CTA Section */
+        .cta-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 80px 0;
+            text-align: center;
+        }
+        
+        .cta-section h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+        
+        .cta-section p {
+            font-size: 1.2rem;
+            opacity: 0.95;
+            margin-bottom: 40px;
+        }
+        
+        .btn-white {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 18px 50px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1.1rem;
+            transition: all 0.3s;
+        }
+        
+        .btn-white:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        /* How it Works */
+        .how-it-works {
+            padding: 80px 0;
+            background: white;
+        }
+        
+        .how-it-works h2 {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 50px;
+        }
+        
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 40px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .step {
+            text-align: center;
+        }
+        
+        .step-number {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0 auto 20px;
+        }
+        
+        .step h3 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+        
+        .step p {
+            color: #666;
+        }
+        
+        /* Footer */
+        footer {
+            background: #1a1a2e;
+            color: white;
+            padding: 40px 0;
+            text-align: center;
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+            
+            .pricing-card.featured {
+                transform: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <nav class="container">
+            <div class="logo">📦 InventarioSmart</div>
+            <div class="nav-links">
+                <a href="#rubros">Rubros</a>
+                <a href="#precios">Precios</a>
+                <a href="#como-funciona">Cómo Funciona</a>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="container">
+            <h1>Sistema de Inventario Inteligente</h1>
+            <p>Diseñado específicamente para tu rubro. Configuración en 5 minutos, sin complicaciones.</p>
+        </div>
+    </section>
+
+    <!-- Rubros -->
+    <section class="rubros-section" id="rubros">
+        <div class="container">
+            <h2>¿A qué te dedicas?</h2>
+            <p class="rubros-subtitle">Selecciona tu rubro y descubre funcionalidades diseñadas para ti</p>
+            
+            <div class="rubros-grid">
+                <div class="rubro-card" onclick="selectRubro('retail')">
+                    <span class="popular-badge">Popular</span>
+                    <div class="rubro-icon">🏪</div>
+                    <h3>Comercio / Retail</h3>
+                    <p>Tiendas, kioscos, almacenes</p>
+                    <ul class="rubro-features">
+                        <li>Escáner con cámara del celular</li>
+                        <li>Promociones automáticas</li>
+                        <li>Multi-sucursal</li>
+                        <li>Integración MercadoPago</li>
+                    </ul>
+                </div>
+
+                <div class="rubro-card" onclick="selectRubro('farmacia')">
+                    <div class="rubro-icon">💊</div>
+                    <h3>Farmacia</h3>
+                    <p>Farmacias y droguerías</p>
+                    <ul class="rubro-features">
+                        <li>Control de lotes y vencimientos</li>
+                        <li>Trazabilidad de medicamentos</li>
+                        <li>Obras sociales</li>
+                        <li>Alertas regulatorias</li>
+                    </ul>
+                </div>
+
+                <div class="rubro-card" onclick="selectRubro('restaurante')">
+                    <div class="rubro-icon">🍽️</div>
+                    <h3>Restaurante / Bar</h3>
+                    <p>Gastronomía y food service</p>
+                    <ul class="rubro-features">
+                        <li>Recetas y costos por plato</li>
+                        <li>Control de mermas</li>
+                        <li>Pedidos a proveedores</li>
+                        <li>Integración delivery apps</li>
+                    </ul>
+                </div>
+
+                <div class="rubro-card" onclick="selectRubro('ferreteria')">
+                    <div class="rubro-icon">🔧</div>
+                    <h3>Ferretería / Repuestos</h3>
+                    <p>Ferreterías y casas de repuestos</p>
+                    <ul class="rubro-features">
+                        <li>Búsqueda inteligente</li>
+                        <li>Productos equivalentes</li>
+                        <li>Listas de precios por cliente</li>
+                        <li>Categorías profundas</li>
+                    </ul>
+                </div>
+
+                <div class="rubro-card" onclick="selectRubro('moda')">
+                    <div class="rubro-icon">👗</div>
+                    <h3>Ropa / Moda</h3>
+                    <p>Tiendas de indumentaria</p>
+                    <ul class="rubro-features">
+                        <li>Matriz tallas y colores</li>
+                        <li>Temporadas</li>
+                        <li>Etiquetas por variante</li>
+                        <li>Integración e-commerce</li>
+                    </ul>
+                </div>
+
+                <div class="rubro-card" onclick="selectRubro('distribuidora')">
+                    <div class="rubro-icon">📦</div>
+                    <h3>Distribuidora</h3>
+                    <p>Mayoristas y distribuidoras</p>
+                    <ul class="rubro-features">
+                        <li>Múltiples listas de precios</li>
+                        <li>Rutas de reparto</li>
+                        <li>Portal de clientes</li>
+                        <li>Backorder</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="pricing-section" id="precios">
+        <div class="container">
+            <h2>Planes simples, sin sorpresas</h2>
+            
+            <div class="pricing-grid">
+                <div class="pricing-card">
+                    <h3>Starter</h3>
+                    <div class="price">$29<span>/mes</span></div>
+                    <ul class="pricing-features">
+                        <li>1 usuario</li>
+                        <li>500 productos</li>
+                        <li>1 sucursal</li>
+                        <li>Soporte email</li>
+                    </ul>
+                    <a href="#" class="btn-primary">Empezar Gratis</a>
+                </div>
+
+                <div class="pricing-card featured">
+                    <h3>Professional</h3>
+                    <div class="price">$79<span>/mes</span></div>
+                    <ul class="pricing-features">
+                        <li>5 usuarios</li>
+                        <li>Productos ilimitados</li>
+                        <li>3 sucursales</li>
+                        <li>Funciones por rubro</li>
+                        <li>Soporte prioritario</li>
+                    </ul>
+                    <a href="#" class="btn-primary">Empezar Gratis</a>
+                </div>
+
+                <div class="pricing-card">
+                    <h3>Business</h3>
+                    <div class="price">$149<span>/mes</span></div>
+                    <ul class="pricing-features">
+                        <li>10 usuarios</li>
+                        <li>Ilimitado todo</li>
+                        <li>Sucursales ilimitadas</li>
+                        <li>API access</li>
+                        <li>Soporte 24/7</li>
+                    </ul>
+                    <a href="#" class="btn-primary">Contactar</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How it Works -->
+    <section class="how-it-works" id="como-funciona">
+        <div class="container">
+            <h2>¿Cómo funciona?</h2>
+            
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Elegí tu rubro</h3>
+                    <p>Seleccionás el tipo de negocio y el sistema se configura automáticamente para vos.</p>
+                </div>
+                
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Pagás online</h3>
+                    <p>Tarjeta de crédito/débito. Sin contratos, cancelás cuando quieras.</p>
+                </div>
+                
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Recibís acceso</h3>
+                    <p>En 30 segundos recibís tus credenciales por email. Tu sistema ya está listo.</p>
+                </div>
+                
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h3>Empezás a usar</h3>
+                    <p>Tutorial interactivo específico para tu rubro. En 5 minutos ya cargás productos.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <div class="container">
+            <h2>Probá gratis por 14 días</h2>
+            <p>Sin tarjeta de crédito. Sin compromiso. Configuración instantánea.</p>
+            <a href="#" class="btn-white">Crear mi cuenta gratis →</a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p><strong>InventarioSmart</strong> - Sistema de inventario potenciado por IA</p>
+            <p style="margin-top: 10px; opacity: 0.7;">© 2025 - Todos los derechos reservados</p>
+        </div>
+    </footer>
+
+    <script>
+        function selectRubro(rubro) {
+            // Remover selección previa
+            document.querySelectorAll('.rubro-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Agregar selección actual
+            event.currentTarget.classList.add('selected');
+            
+            // Guardar selección (para uso posterior)
+            localStorage.setItem('rubro-seleccionado', rubro);
+            
+            // Scroll a precios
+            document.getElementById('precios').scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
