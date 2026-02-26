@@ -80,13 +80,20 @@ class TenantRegisterController extends Controller
 
             DB::commit();
 
-            // Enviar email de bienvenida (async)
-            // TODO: Implementar cola de emails
-            // dispatch(new SendWelcomeEmail($tenant));
+            // Enviar email de bienvenida con credenciales
+            try {
+                \Mail::to($validated['email'])->queue(
+                    new \App\Mail\TenantWelcome($tenant, $validated['password'])
+                );
+                Log::info("Email de bienvenida enviado a: {$validated['email']}");
+            } catch (\Exception $e) {
+                Log::error("Error enviando email de bienvenida: " . $e->getMessage());
+                // No fallar el registro por error de email
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => '¡Tu cuenta ha sido creada exitosamente!',
+                'message' => '¡Tu cuenta ha sido creada exitosamente! Revisa tu email para acceder.',
                 'data' => [
                     'tenant' => [
                         'id' => $tenant->id,

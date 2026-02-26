@@ -1,88 +1,115 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\CategoriaController;
-use App\Http\Controllers\ProductoController;
-use App\Http\Controllers\ProveedorController;
-use App\Http\Controllers\ClienteController;
-use App\Http\Controllers\CajaController;
-use App\Http\Controllers\MovimientoCajaController;
-use App\Http\Controllers\CuentaCorrienteController;
-use App\Http\Controllers\DeudaClienteController;
-use App\Http\Controllers\MovimientoStockController;
-use App\Http\Controllers\VentaController;
-use App\Http\Controllers\ChequeController;
-use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Auth\TenantRegisterController;
+use App\Http\Controllers\Auth\TenantLoginController;
+use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\OnboardingController;
 
-Route::post('/login', [AuthController::class, 'login']);
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+|
+| Rutas públicas (sin tenant)
+|
+*/
 
-Route::middleware('auth:web')->group(function () {
-    Route::get('/user', [AuthController::class, 'user']);
-    Route::post('/logout', [AuthController::class, 'logout']);
+// Registro de nuevos tenants (auto-provisioning)
+Route::post('/register', [TenantRegisterController::class, 'store']);
+Route::get('/check-slug', [TenantRegisterController::class, 'checkSlugAvailability']);
 
-    // Dashboard
-    Route::get('/dashboard/estadisticas', [DashboardController::class, 'estadisticas']);
-    Route::get('/dashboard/ventas-por-dia', [DashboardController::class, 'ventasPorDia']);
-    Route::get('/dashboard/productos-mas-vendidos', [DashboardController::class, 'productosMasVendidos']);
-    Route::get('/dashboard/resumen-cajas', [DashboardController::class, 'resumenCajas']);
-    Route::get('/dashboard/ventas-por-tipo-pago', [DashboardController::class, 'ventasPorTipoPago']);
+// Planes de suscripción
+Route::get('/plans', [SubscriptionController::class, 'plans']);
 
-    // Categorías
-    Route::apiResource('categorias', CategoriaController::class);
+/*
+|--------------------------------------------------------------------------
+| Rutas de Tenant (requieren subdominio)
+|--------------------------------------------------------------------------
+*/
 
-    // Productos
-    Route::apiResource('productos', ProductoController::class);
-    Route::get('productos/proveedor/{proveedorId}', [ProductoController::class, 'getByProveedor']);
-    Route::post('productos/aumento-masivo', [ProductoController::class, 'aumentoMasivo']);
-
-    // Proveedores
-    Route::apiResource('proveedores', ProveedorController::class);
-
-    // Clientes
-    Route::apiResource('clientes', ClienteController::class);
-
-    // Cajas
-    Route::get('cajas', [CajaController::class, 'index']);
-    Route::post('cajas', [CajaController::class, 'store']);
-    Route::get('cajas/{id}', [CajaController::class, 'show']);
-    Route::get('cajas/{id}/resumen-cierre', [CajaController::class, 'resumenCierre']);
-    Route::post('cajas/{id}/cerrar', [CajaController::class, 'cerrar']);
-
-    // Movimientos de Caja
-    Route::get('movimientos-caja', [MovimientoCajaController::class, 'index']);
-    Route::post('movimientos-caja', [MovimientoCajaController::class, 'store']);
-    Route::get('movimientos-caja/{id}', [MovimientoCajaController::class, 'show']);
-
-    // Cuentas Corrientes
-    Route::get('cuentas-corrientes', [CuentaCorrienteController::class, 'index']);
-    Route::post('cuentas-corrientes', [CuentaCorrienteController::class, 'store']);
-    Route::get('cuentas-corrientes/{id}', [CuentaCorrienteController::class, 'show']);
-    Route::post('cuentas-corrientes/{id}/movimiento', [CuentaCorrienteController::class, 'agregarMovimiento']);
-
-    // Deudas de Clientes
-    Route::get('deudas-clientes', [DeudaClienteController::class, 'index']);
-    Route::post('deudas-clientes', [DeudaClienteController::class, 'store']);
-    Route::get('deudas-clientes/{id}', [DeudaClienteController::class, 'show']);
-    Route::post('deudas-clientes/{id}/pago', [DeudaClienteController::class, 'registrarPago']);
-
-    // Movimientos de Stock
-    Route::get('movimientos-stock', [MovimientoStockController::class, 'index']);
-    Route::post('movimientos-stock', [MovimientoStockController::class, 'store']);
-    Route::get('movimientos-stock/{id}', [MovimientoStockController::class, 'show']);
-
-    // Ventas
-    Route::get('ventas', [VentaController::class, 'index']);
-    Route::post('ventas', [VentaController::class, 'store']);
-    Route::get('ventas/{id}', [VentaController::class, 'show']);
-    Route::post('ventas/{id}/adjuntos', [VentaController::class, 'agregarAdjuntos']);
-
-    // Cheques
-    Route::apiResource('cheques', ChequeController::class);
-    Route::get('cheques-proximos-vencer', [ChequeController::class, 'proximosAVencer']);
-    Route::get('cheques-por-mes', [ChequeController::class, 'porMes']);
-    Route::get('cheques-por-fecha', [ChequeController::class, 'porFecha']);
-    Route::get('cheques-estadisticas', [ChequeController::class, 'estadisticas']);
-    Route::post('cheques/{id}/marcar-cobrado', [ChequeController::class, 'marcarCobrado']);
+Route::middleware(['tenant'])->group(function () {
+    
+    // Auth
+    Route::post('/login', [TenantLoginController::class, 'login']);
+    Route::post('/forgot-password', [TenantLoginController::class, 'forgotPassword']);
+    
+    // Suscripciones
+    Route::post('/subscription/checkout', [SubscriptionController::class, 'checkout']);
+    Route::get('/subscription/success', [SubscriptionController::class, 'success'])
+        ->name('subscription.success');
+    Route::get('/subscription/cancel', [SubscriptionController::class, 'cancel'])
+        ->name('subscription.cancel');
+    
+    // Onboarding (público durante trial)
+    Route::get('/onboarding/status', [OnboardingController::class, 'status']);
+    Route::get('/onboarding/step/{step}', [OnboardingController::class, 'getStepConfig']);
+    Route::post('/onboarding/step/{step}', [OnboardingController::class, 'saveStep']);
+    Route::post('/onboarding/complete', [OnboardingController::class, 'complete']);
+    
+    // Rutas protegidas (requieren auth)
+    Route::middleware(['auth:sanctum'])->group(function () {
+        
+        // Auth
+        Route::post('/logout', [TenantLoginController::class, 'logout']);
+        Route::get('/me', [TenantLoginController::class, 'me']);
+        Route::post('/change-password', [TenantLoginController::class, 'changePassword']);
+        
+        // Onboarding (guardar progreso)
+        Route::post('/onboarding/step/{step}', [OnboardingController::class, 'saveStep']);
+        
+        // Dashboard
+        Route::get('/dashboard', function () {
+            return response()->json([
+                'message' => 'Dashboard data',
+                'tenant' => app('tenant')->only(['id', 'name', 'slug', 'rubro', 'plan']),
+            ]);
+        });
+        
+        // Productos
+        Route::apiResource('productos', \App\Http\Controllers\ProductoController::class);
+        
+        // Ventas
+        Route::apiResource('ventas', \App\Http\Controllers\VentaController::class);
+        
+        // Clientes
+        Route::apiResource('clientes', \App\Http\Controllers\ClienteController::class);
+        
+        // Configuración
+        Route::get('/settings', function () {
+            $tenant = app('tenant');
+            return response()->json([
+                'name' => $tenant->name,
+                'rubro' => $tenant->rubro,
+                'plan' => $tenant->plan,
+                'settings' => $tenant->settings,
+            ]);
+        });
+        
+        // Funciones específicas por rubro
+        Route::middleware(['rubro:farmacia'])->group(function () {
+            Route::apiResource('lotes', \App\Http\Controllers\LoteController::class);
+            Route::apiResource('obras-sociales', \App\Http\Controllers\ObraSocialController::class);
+        });
+        
+        Route::middleware(['rubro:restaurante'])->group(function () {
+            Route::apiResource('recetas', \App\Http\Controllers\RecetaController::class);
+            Route::apiResource('areas', \App\Http\Controllers\AreaController::class);
+        });
+        
+        Route::middleware(['rubro:distribuidora'])->group(function () {
+            Route::apiResource('rutas', \App\Http\Controllers\RutaController::class);
+            Route::get('/clientes/{cliente}/precios', [\App\Http\Controllers\ClienteController::class, 'listaPrecios']);
+        });
+        
+    });
+    
 });
+
+/*
+|--------------------------------------------------------------------------
+| Webhooks
+|--------------------------------------------------------------------------
+*/
+
+Route::post('/webhooks/stripe', [SubscriptionController::class, 'webhook']);
