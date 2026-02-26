@@ -3,8 +3,38 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\LandingController;
+use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\StripeWebhookController;
 
-// Rutas de autenticación
+// Landing page (pública)
+Route::get('/', [LandingController::class, 'index'])->name('landing.index');
+Route::get('/precios', [LandingController::class, 'pricing'])->name('landing.pricing');
+Route::get('/registro', [LandingController::class, 'showRegistrationForm'])->name('landing.register');
+Route::post('/registro', [LandingController::class, 'register'])->name('landing.register.post');
+
+// Onboarding Wizard
+Route::middleware(['auth', 'tenant'])->group(function () {
+    Route::get('/onboarding', [OnboardingController::class, 'showWizard'])->name('onboarding.wizard');
+});
+
+// API Routes for Onboarding
+Route::middleware(['auth', 'tenant'])->prefix('api/onboarding')->group(function () {
+    Route::post('/start', [OnboardingController::class, 'start'])->name('api.onboarding.start');
+    Route::get('/status', [OnboardingController::class, 'status'])->name('api.onboarding.status');
+    Route::post('/complete-step', [OnboardingController::class, 'completeStep'])->name('api.onboarding.complete-step');
+});
+
+// Payment routes
+Route::post('/payment/checkout', [PaymentController::class, 'createCheckoutSession'])->name('payment.checkout');
+Route::get('/payment/success/{tenant}', [PaymentController::class, 'success'])->name('payment.success');
+Route::get('/payment/cancel/{tenant}', [PaymentController::class, 'cancel'])->name('payment.cancel');
+
+// Stripe Webhook (public - no CSRF)
+Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle'])->name('stripe.webhook');
+
+// Rutas de autenticación tenant
 Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');

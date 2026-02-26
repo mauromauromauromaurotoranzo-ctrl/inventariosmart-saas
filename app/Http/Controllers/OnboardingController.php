@@ -2,279 +2,113 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Tenant;
+use App\Application\UseCases\Onboarding\CompleteStepRequest;
+use App\Application\UseCases\Onboarding\CompleteStepUseCase;
+use App\Application\UseCases\Onboarding\GetOnboardingStatusRequest;
+use App\Application\UseCases\Onboarding\GetOnboardingStatusUseCase;
+use App\Application\UseCases\Onboarding\StartOnboardingRequest;
+use App\Application\UseCases\Onboarding\StartOnboardingUseCase;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class OnboardingController extends Controller
 {
+    public function __construct(
+        private readonly StartOnboardingUseCase $startOnboardingUseCase,
+        private readonly GetOnboardingStatusUseCase $getOnboardingStatusUseCase,
+        private readonly CompleteStepUseCase $completeStepUseCase
+    ) {}
+
     /**
-     * Obtener estado del onboarding
+     * Iniciar o recuperar el onboarding del tenant actual
      */
-    public function status(Request $request)
+    public function start(): JsonResponse
     {
-        $tenant = app('tenant');
-        $settings = $tenant->settings ?? [];
+        $tenant = Auth::user()->tenant ?? request()->attributes->get('tenant');
         
+        if (!$tenant) {
+            return response()->json(['error' => 'Tenant no encontrado'], 404);
+        }
+
+        $request = new StartOnboardingRequest(tenantId: $tenant->id()->value());
+        $response = $this->startOnboardingUseCase->execute($request);
+
+        if (!$response->success) {
+            return response()->json(['error' => $response->error], 400);
+        }
+
         return response()->json([
-            'completed' => $settings['onboarding_completed'] ?? false,
-            'current_step' => $settings['onboarding_step'] ?? 1,
-            'total_steps' => $this->getTotalSteps($tenant->rubro),
-            'steps' => $this->getSteps($tenant),
-            'progress' => $this->calculateProgress($tenant),
+            'onboarding_id' => $response->onboardingId,
+            'current_step' => $response->currentStep,
+            'progress_percentage' => $response->progressPercentage,
+            'step_config' => $response->stepConfig,
         ]);
     }
 
     /**
-     * Guardar progreso de un paso
+     * Obtener el estado actual del onboarding
      */
-    public function saveStep(Request $request, int $stepNumber)
+    public function status(): JsonResponse
     {
-        $tenant = app('tenant');
+        $tenant = Auth::user()->tenant ?? request()->attributes->get('tenant');
         
+        if (!$tenant) {
+            return response()->json(['error' => 'Tenant no encontrado'], 404);
+        }
+
+        $request = new GetOnboardingStatusRequest(tenantId: $tenant->id()->value());
+        $response = $this->getOnboardingStatusUseCase->execute($request);
+
+        return response()->json([
+            'has_started' => $response->hasStarted,
+            'onboarding_id' => $response->onboardingId,
+            'current_step' => $response->currentStep,
+            'completed_steps' => $response->completedSteps,
+            'progress_percentage' => $response->progressPercentage,
+            'is_completed' => $response->isCompleted,
+            'step_config' => $response->stepConfig,
+            'started_at' => $response->startedAt,
+            'completed_at' => $response->completedAt,
+        ]);
+    }
+
+    /**
+     * Completar el paso actual y avanzar al siguiente
+     */
+    public function completeStep(Request $request): JsonResponse
+    {
         $validated = $request->validate([
-            'data' => 'required|array',
-            'completed' => 'boolean',
+            'onboarding_id' => 'required|string',
+            'step_data' => 'nullable|array',
         ]);
 
-        $settings = $tenant->settings ?? [];
-        
-        // Guardar datos del paso
-        $settings["onboarding_step_{$stepNumber}"] = $validated['data'];
-        
-        // Actualizar paso actual
-        if ($validated['completed'] ?? false) {
-            $settings['onboarding_step'] = $stepNumber + 1;
+        $useCaseRequest = new CompleteStepRequest(
+            onboardingId: $validated['onboarding_id'],
+            stepData: $validated['step_data'] ?? null
+        );
+
+        $response = $this->completeStepUseCase->execute($useCaseRequest);
+
+        if (!$response->success) {
+            return response()->json(['error' => $response->error], 400);
         }
-        
-        // Verificar si completó todos los pasos
-        $totalSteps = $this->getTotalSteps($tenant->rubro);
-        if ($stepNumber >= $totalSteps) {
-            $settings['onboarding_completed'] = true;
-            $settings['onboarding_completed_at'] = now()->toIso8601String();
-        }
-        
-        $tenant->update(['settings' => $settings]);
 
         return response()->json([
-            'success' => true,
-            'next_step' => $settings['onboarding_step'],
-            'completed' => $settings['onboarding_completed'] ?? false,
+            'onboarding_id' => $response->onboardingId,
+            'current_step' => $response->currentStep,
+            'completed_steps' => $response->completedSteps,
+            'progress_percentage' => $response->progressPercentage,
+            'is_completed' => $response->isCompleted,
+            'step_config' => $response->stepConfig,
         ]);
     }
 
     /**
-     * Completar onboarding (skip o finish)
+     * Vista del wizard de onboarding (SPA)
      */
-    public function complete(Request $request)
+    public function showWizard()
     {
-        $tenant = app('tenant');
-        
-        $settings = $tenant->settings ?? [];
-        $settings['onboarding_completed'] = true;
-        $settings['onboarding_completed_at'] = now()->toIso8601String();
-        $settings['onboarding_skipped'] = $request->boolean('skipped', false);
-        
-        $tenant->update(['settings' => $settings]);
-
-        return response()->json([
-            'success' => true,
-            'redirect' => '/dashboard',
-        ]);
-    }
-
-    /**
-     * Obtener configuración específica del paso
-     */
-    public function getStepConfig(int $stepNumber)
-    {
-        $tenant = app('tenant');
-        
-        $config = match($stepNumber) {
-            1 => $this->getStep1Config($tenant), // Información básica
-            2 => $this->getStep2Config($tenant), // Productos/Items
-            3 => $this->getStep3Config($tenant), // Configuración específica
-            default => null,
-        };
-
-        if (!$config) {
-            return response()->json(['error' => 'Paso no encontrado'], 404);
-        }
-
-        return response()->json($config);
-    }
-
-    /**
-     * Obtener total de pasos según rubro
-     */
-    private function getTotalSteps(string $rubro): int
-    {
-        return match($rubro) {
-            'retail' => 3,
-            'farmacia' => 4,
-            'restaurante' => 4,
-            'ferreteria' => 3,
-            'moda' => 4,
-            'distribuidora' => 4,
-            'manufactura' => 5,
-            default => 3,
-        };
-    }
-
-    /**
-     * Obtener lista de pasos con estado
-     */
-    private function getSteps(Tenant $tenant): array
-    {
-        $rubro = $tenant->rubro;
-        $settings = $tenant->settings ?? [];
-        $currentStep = $settings['onboarding_step'] ?? 1;
-        
-        $steps = [
-            'retail' => [
-                ['id' => 1, 'title' => 'Tu Negocio', 'icon' => '🏪'],
-                ['id' => 2, 'title' => 'Productos', 'icon' => '📦'],
-                ['id' => 3, 'title' => 'Primera Venta', 'icon' => '💰'],
-            ],
-            'farmacia' => [
-                ['id' => 1, 'title' => 'Tu Farmacia', 'icon' => '💊'],
-                ['id' => 2, 'title' => 'Medicamentos', 'icon' => '💉'],
-                ['id' => 3, 'title' => 'Obras Sociales', 'icon' => '🏥'],
-                ['id' => 4, 'title' => 'Primera Receta', 'icon' => '📝'],
-            ],
-            'restaurante' => [
-                ['id' => 1, 'title' => 'Tu Restaurante', 'icon' => '🍽️'],
-                ['id' => 2, 'title' => 'Menú', 'icon' => '📋'],
-                ['id' => 3, 'title' => 'Insumos', 'icon' => '🥘'],
-                ['id' => 4, 'title' => 'Áreas', 'icon' => '👨‍🍳'],
-            ],
-            'ferreteria' => [
-                ['id' => 1, 'title' => 'Tu Ferretería', 'icon' => '🔧'],
-                ['id' => 2, 'title' => 'Categorías', 'icon' => '📁'],
-                ['id' => 3, 'title' => 'Listas de Precios', 'icon' => '💵'],
-            ],
-            'moda' => [
-                ['id' => 1, 'title' => 'Tu Tienda', 'icon' => '👗'],
-                ['id' => 2, 'title' => 'Prendas', 'icon' => '👕'],
-                ['id' => 3, 'title' => 'Tallas y Colores', 'icon' => '🎨'],
-                ['id' => 4, 'title' => 'Temporadas', 'icon' => '📅'],
-            ],
-            'distribuidora' => [
-                ['id' => 1, 'title' => 'Tu Distribuidora', 'icon' => '🚚'],
-                ['id' => 2, 'title' => 'Catálogo', 'icon' => '📖'],
-                ['id' => 3, 'title' => 'Clientes', 'icon' => '👥'],
-                ['id' => 4, 'title' => 'Rutas', 'icon' => '🗺️'],
-            ],
-            'manufactura' => [
-                ['id' => 1, 'title' => 'Tu Fábrica', 'icon' => '🏭'],
-                ['id' => 2, 'title' => 'Materia Prima', 'icon' => '📦'],
-                ['id' => 3, 'title' => 'Recetas (BOM)', 'icon' => '⚙️'],
-                ['id' => 4, 'title' => 'Productos Terminados', 'icon' => '🎁'],
-                ['id' => 5, 'title' => 'Órdenes', 'icon' => '📋'],
-            ],
-        };
-
-        $stepList = $steps[$rubro] ?? $steps['retail'];
-        
-        // Agregar estado a cada paso
-        foreach ($stepList as &$step) {
-            $step['status'] = match(true) {
-                $step['id'] < $currentStep => 'completed',
-                $step['id'] === $currentStep => 'current',
-                default => 'pending',
-            };
-        }
-
-        return $stepList;
-    }
-
-    /**
-     * Calcular progreso
-     */
-    private function calculateProgress(Tenant $tenant): int
-    {
-        $settings = $tenant->settings ?? [];
-        $currentStep = $settings['onboarding_step'] ?? 1;
-        $totalSteps = $this->getTotalSteps($tenant->rubro);
-        
-        return min(100, intval((($currentStep - 1) / $totalSteps) * 100));
-    }
-
-    /**
-     * Configuración paso 1: Información básica
-     */
-    private function getStep1Config(Tenant $tenant): array
-    {
-        return [
-            'title' => 'Información de tu negocio',
-            'description' => 'Completa los datos básicos para personalizar tu experiencia.',
-            'fields' => [
-                ['name' => 'business_name', 'label' => 'Nombre del negocio', 'type' => 'text', 'required' => true],
-                ['name' => 'address', 'label' => 'Dirección', 'type' => 'text', 'required' => false],
-                ['name' => 'phone', 'label' => 'Teléfono', 'type' => 'tel', 'required' => false],
-                ['name' => 'currency', 'label' => 'Moneda', 'type' => 'select', 'options' => ['USD', 'ARS', 'MXN', 'COP', 'CLP', 'PEN'], 'required' => true],
-                ['name' => 'tax_id', 'label' => 'Identificación fiscal', 'type' => 'text', 'required' => false],
-            ],
-        ];
-    }
-
-    /**
-     * Configuración paso 2: Productos
-     */
-    private function getStep2Config(Tenant $tenant): array
-    {
-        $rubroSpecific = match($tenant->rubro) {
-            'farmacia' => [
-                'title' => 'Registra tus medicamentos',
-                'description' => 'Puedes agregarlos manualmente o importar desde Excel.',
-                'can_import' => true,
-                'sample_fields' => ['nombre', 'codigo', 'precio', 'stock', 'lote', 'vencimiento'],
-            ],
-            'restaurante' => [
-                'title' => 'Crea tu menú',
-                'description' => 'Agrega platos y sus ingredientes. Calculamos costos automáticamente.',
-                'can_import' => false,
-            ],
-            default => [
-                'title' => 'Carga tus productos',
-                'description' => 'Puedes agregarlos manualmente, escanear códigos de barras o importar desde Excel.',
-                'can_import' => true,
-                'sample_fields' => ['nombre', 'codigo', 'precio', 'stock', 'categoria'],
-            ],
-        };
-
-        return array_merge([
-            'quick_add' => true,
-            'show_tutorial' => true,
-        ], $rubroSpecific);
-    }
-
-    /**
-     * Configuración paso 3: Configuración específica
-     */
-    private function getStep3Config(Tenant $tenant): array
-    {
-        return match($tenant->rubro) {
-            'farmacia' => [
-                'title' => 'Configura obras sociales',
-                'description' => 'Agrega las obras sociales con las que trabajas.',
-                'component' => 'ObrasSocialesSetup',
-            ],
-            'restaurante' => [
-                'title' => 'Configura áreas de cocina',
-                'description' => 'Define bar, cocina caliente, parrilla, etc.',
-                'component' => 'AreasCocinaSetup',
-            ],
-            'distribuidora' => [
-                'title' => 'Configura listas de precios',
-                'description' => 'Mayorista, minorista, constructoras...',
-                'component' => 'ListasPreciosSetup',
-            ],
-            default => [
-                'title' => 'Configura tu primera caja',
-                'description' => 'Todo listo para tu primera venta.',
-                'component' => 'CajaSetup',
-            ],
-        };
+        return view('onboarding.wizard');
     }
 }
