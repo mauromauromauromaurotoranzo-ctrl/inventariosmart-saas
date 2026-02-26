@@ -9,33 +9,21 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('tenants', function (Blueprint $table) {
-            $table->id();
+            $table->string('id')->primary();
             $table->string('name'); // Nombre del negocio
             $table->string('slug')->unique(); // Subdominio: farmacia-san-juan
-            $table->enum('rubro', [
-                'retail', 
-                'farmacia', 
-                'restaurante', 
-                'ferreteria', 
-                'moda', 
-                'distribuidora', 
-                'manufactura'
-            ]);
+            $table->string('rubro'); // farmacia, retail, restaurante, etc
             $table->string('database')->unique(); // tenant_farmacia_001
-            $table->enum('plan', ['starter', 'professional', 'business', 'enterprise'])
-                  ->default('starter');
+            $table->string('plan')->default('starter'); // starter, professional, business
+            $table->string('email')->nullable();
             $table->timestamp('trial_ends_at')->nullable();
             $table->timestamp('subscribed_at')->nullable();
-            $table->enum('status', ['active', 'suspended', 'cancelled'])
-                  ->default('active');
+            $table->string('status')->default('pending'); // pending, active, suspended, cancelled
             $table->json('settings')->nullable(); // Config específica por rubro
-            $table->string('email')->unique(); // Email del administrador
             $table->timestamps();
             
-            // Índices para búsquedas rápidas
-            $table->index('rubro');
             $table->index('status');
-            $table->index(['status', 'trial_ends_at']);
+            $table->index('rubro');
         });
     }
 

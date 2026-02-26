@@ -3,28 +3,16 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 abstract class TenantModel extends Model
 {
     /**
-     * Conexión a usar (se sobrescribe en constructor)
-     */
-    protected $connection = 'tenant';
-    
-    /**
-     * Indica si el modelo usa tenant_id
-     */
-    protected bool $usesTenantId = false;
-
-    /**
-     * Constructor
+     * Forzar uso de conexión tenant
      */
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        
-        // Asegurar que usemos la conexión tenant
         $this->connection = 'tenant';
     }
 
@@ -34,41 +22,29 @@ abstract class TenantModel extends Model
     protected static function boot()
     {
         parent::boot();
-        
-        // Al crear, agregar tenant_id si corresponde
+
         static::creating(function ($model) {
-            if ($model->usesTenantId && app()->has('tenant')) {
+            // Agregar tenant_id si es necesario y está disponible
+            if (app()->has('tenant') && !isset($model->tenant_id)) {
                 $tenant = app('tenant');
-                $model->tenant_id = $tenant->id;
-                
-                Log::debug("Asignando tenant_id {$tenant->id} a " . get_class($model));
-            }
-        });
-        
-        // Scope global para filtrar por tenant si es necesario
-        static::addGlobalScope('tenant', function ($builder) use (&$model) {
-            // Solo aplicar si el modelo usa tenant_id y hay un tenant activo
-            $instance = new static;
-            if ($instance->usesTenantId && app()->has('tenant')) {
-                $tenant = app('tenant');
-                $builder->where('tenant_id', $tenant->id);
+                if ($tenant) {
+                    $model->tenant_id = $tenant->id()->value();
+                }
             }
         });
     }
 
     /**
-     * Obtener el tenant actual
+     * Scope para filtrar por tenant actual
      */
-    public function getCurrentTenant(): ?Tenant
+    public function scopeCurrentTenant($query)
     {
-        return app('tenant') ?? null;
-    }
-
-    /**
-     * Verificar si hay un tenant conectado
-     */
-    public function hasTenant(): bool
-    {
-        return app()->has('tenant') && app('tenant') !== null;
+        if (app()->has('tenant')) {
+            $tenant = app('tenant');
+            if ($tenant) {
+                return $query->where('tenant_id', $tenant->id()->value());
+            }
+        }
+        return $query;
     }
 }
