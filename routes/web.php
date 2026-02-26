@@ -26,8 +26,12 @@ Route::middleware(['auth', 'tenant'])->prefix('api/onboarding')->group(function 
     Route::post('/complete-step', [OnboardingController::class, 'completeStep'])->name('api.onboarding.complete-step');
 });
 
-// Payment routes
-Route::post('/payment/checkout', [PaymentController::class, 'createCheckoutSession'])->name('payment.checkout');
+// Payment routes (protegidas)
+Route::middleware(['auth', 'tenant'])->group(function () {
+    Route::post('/payment/checkout', [PaymentController::class, 'createCheckoutSession'])->name('payment.checkout');
+    Route::get('/payment/history', [PaymentController::class, 'history'])->name('payment.history');
+});
+
 Route::get('/payment/success/{tenant}', [PaymentController::class, 'success'])->name('payment.success');
 Route::get('/payment/cancel/{tenant}', [PaymentController::class, 'cancel'])->name('payment.cancel');
 

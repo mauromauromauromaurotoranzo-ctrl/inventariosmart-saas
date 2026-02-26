@@ -2,75 +2,93 @@
 
 namespace App\Http\Controllers;
 
+use App\Application\UseCases\Payment\CreateCheckoutSessionRequest;
+use App\Application\UseCases\Payment\CreateCheckoutSessionUseCase;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Stripe\Stripe;
-use Stripe\Checkout\Session;
-use App\Models\Tenant;
+use Illuminate\Support\Facades\Auth;
 
 class PaymentController extends Controller
 {
-    public function __construct()
-    {
-        Stripe::setApiKey(config('services.stripe.secret'));
-    }
+    public function __construct(
+        private readonly CreateCheckoutSessionUseCase $createCheckoutSessionUseCase
+    ) {}
 
-    public function createCheckoutSession(Request $request)
+    /**
+     * Crear sesión de checkout de Stripe
+     */
+    public function createCheckoutSession(Request $request): JsonResponse|RedirectResponse
     {
-        $request->validate([
-            'tenant_slug' => 'required|string',
-            'plan' => 'required|in:basic,pro,enterprise',
+        $validated = $request->validate([
+            'plan' => 'required|in:starter,professional,business',
         ]);
 
-        $tenant = Tenant::where('slug', $request->tenant_slug)->first();
+        $tenant = Auth::user()->tenant ?? request()->attributes->get('tenant');
         
         if (!$tenant) {
-            return redirect()->back()->with('error', 'Tenant no encontrado');
+            return response()->json(['error' => 'Tenant no encontrado'], 404);
         }
 
-        $prices = [
-            'basic' => config('services.stripe.prices.basic'),
-            'pro' => config('services.stripe.prices.pro'),
-            'enterprise' => config('services.stripe.prices.enterprise'),
-        ];
+        $useCaseRequest = new CreateCheckoutSessionRequest(
+            tenantId: $tenant->id()->value(),
+            plan: $validated['plan']
+        );
 
-        $priceId = $prices[$request->plan];
+        $response = $this->createCheckoutSessionUseCase->execute($useCaseRequest);
 
-        if (!$priceId) {
-            return redirect()->back()->with('error', 'Plan no configurado');
+        if (!$response->success) {
+            return response()->json(['error' => $response->error], 400);
         }
 
-        try {
-            $session = Session::create([
-                'payment_method_types' => ['card'],
-                'line_items' => [[
-                    'price' => $priceId,
-                    'quantity' => 1,
-                ]],
-                'mode' => 'subscription',
-                'success_url' => route('payment.success', ['tenant' => $tenant->slug]),
-                'cancel_url' => route('payment.cancel', ['tenant' => $tenant->slug]),
-                'metadata' => [
-                    'tenant_slug' => $tenant->slug,
-                    'plan' => $request->plan,
-                ],
+        // Si es AJAX, retornar JSON
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'session_id' => $response->sessionId,
+                'checkout_url' => $response->checkoutUrl,
             ]);
-
-            return redirect($session->url);
-
-        } catch (\Exception $e) {
-            Log::error('Stripe checkout error: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Error al procesar el pago');
         }
+
+        // Si es form normal, redirigir a Stripe
+        return redirect($response->checkoutUrl);
     }
 
-    public function success(string $tenantSlug)
+    /**
+     * Página de éxito después del pago
+     */
+    public function success(Request $request, string $tenantSlug)
     {
-        return view('payment.success', compact('tenantSlug'));
+        $sessionId = $request->get('session_id');
+        
+        return view('payment.success', [
+            'tenantSlug' => $tenantSlug,
+            'sessionId' => $sessionId,
+        ]);
     }
 
+    /**
+     * Página de cancelación del pago
+     */
     public function cancel(string $tenantSlug)
     {
-        return view('payment.cancel', compact('tenantSlug'));
+        return view('payment.cancel', [
+            'tenantSlug' => $tenantSlug,
+        ]);
+    }
+
+    /**
+     * Mostrar historial de pagos del tenant
+     */
+    public function history()
+    {
+        $tenant = Auth::user()->tenant ?? request()->attributes->get('tenant');
+        
+        if (!$tenant) {
+            abort(404, 'Tenant no encontrado');
+        }
+
+        return view('payment.history', [
+            'tenant' => $tenant,
+        ]);
     }
 }

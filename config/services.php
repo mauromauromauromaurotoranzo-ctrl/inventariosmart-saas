@@ -53,6 +53,10 @@ return [
         'secret' => env('STRIPE_SECRET'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
         'prices' => [
+            'starter' => env('STRIPE_PRICE_STARTER'),
+            'professional' => env('STRIPE_PRICE_PROFESSIONAL'),
+            'business' => env('STRIPE_PRICE_BUSINESS'),
+            // Legacy support
             'basic' => env('STRIPE_PRICE_BASIC'),
             'pro' => env('STRIPE_PRICE_PRO'),
             'enterprise' => env('STRIPE_PRICE_ENTERPRISE'),
