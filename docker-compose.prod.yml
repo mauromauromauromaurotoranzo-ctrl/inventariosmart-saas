@@ -1,0 +1,55 @@
+# Docker Compose para Producción - Override
+# Uso: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  app:
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - APP_OPTIMIZE=true
+      # Asegurar que las credenciales de DB coincidan con el servicio db
+      - DB_PASSWORD=${DB_PASSWORD:-root}
+    command: php-fpm
+    # Deshabilitar volúmenes de desarrollo en producción
+    volumes:
+      - ./storage:/var/www/storage
+      - ./bootstrap/cache:/var/www/bootstrap/cache
+      - ./docker/php/prod.ini:/usr/local/etc/php/conf.d/prod.ini
+      - ./.env:/var/www/.env
+      - ./resources:/var/www/resources
+    # Límites más estrictos en producción
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: '0.75'
+
+  webserver:
+    ports:
+      - "8000:80"  # Puerto interno, nginx del sistema maneja el 80
+      # - "443:443"  # SSL se maneja con certbot en nginx del sistema
+    volumes:
+      - ./public:/var/www/public:ro
+      - ./docker/nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro
+    # Límites más estrictos
+    deploy:
+      resources:
+        limits:
+          memory: 96M
+          cpus: '0.25'
+
+  db:
+    environment:
+      # Usar las mismas credenciales que el archivo base para mantener consistencia
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-root}
+      MYSQL_USER: ${DB_USERNAME:-inventario_user}
+      MYSQL_DATABASE: ${DB_DATABASE:-inventario_db}
+    ports: []  # No exponer MySQL en producción por defecto
+    # Límites más estrictos
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: '0.75'
+    command: --innodb-buffer-pool-size=192M --max-connections=30

@@ -1,0 +1,98 @@
+# Git
+.git
+.gitignore
+.gitattributes
+.gitkeep
+
+# Documentation
+*.md
+!README.md
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Laravel
+.env
+.env.*
+!.env.example
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+npm-debug.log
+yarn-error.log
+
+# Dependencies (se instalan dentro del contenedor)
+/vendor
+/node_modules
+/package.json
+/package-lock.json
+/vite.config.js
+/postcss.config.js
+/tailwind.config.js
+
+# Build files (no se usan con Blade)
+/public/hot
+/public/build
+/public/storage
+/storage/*.key
+/resources/js
+/resources/css
+
+# Logs
+*.log
+/storage/logs/*
+!/storage/logs/.gitignore
+
+# Cache
+/bootstrap/cache/*
+!/bootstrap/cache/.gitignore
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+
+# Test files
+/tests
+phpunit.xml
+.phpunit.cache
+
+# Scripts de desarrollo
+*.bat
+*.sh
+!deploy.bat
+!deploy.sh
+
+# Docker
+docker-compose*.yml
+!docker-compose.yml
+Dockerfile.dev
+.dockerignore
+
+# Archivos temporales
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# Archivos de usuario
+'admin@inventario.com'
+'Administrador'
+crear-usuario.bat
+iniciar-proyecto.bat
+instalar-composer-manual.bat
+subir-git.bat
+subir-git.sh
+npm-dev.bat
