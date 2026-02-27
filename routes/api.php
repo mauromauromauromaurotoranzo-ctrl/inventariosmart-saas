@@ -5,6 +5,11 @@ use App\Http\Controllers\Auth\TenantRegisterController;
 use App\Http\Controllers\Auth\TenantLoginController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\Api\ProductoController;
+use App\Http\Controllers\Api\CategoriaController;
+use App\Http\Controllers\Api\ClienteController;
+use App\Http\Controllers\Api\VentaController;
+use App\Http\Controllers\Api\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -59,21 +64,27 @@ Route::middleware(['tenant'])->group(function () {
         Route::post('/onboarding/step/{step}', [OnboardingController::class, 'saveStep']);
         
         // Dashboard
-        Route::get('/dashboard', function () {
-            return response()->json([
-                'message' => 'Dashboard data',
-                'tenant' => app('tenant')->only(['id', 'name', 'slug', 'rubro', 'plan']),
-            ]);
-        });
+        Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
+        Route::get('/dashboard/ventas-chart', [DashboardController::class, 'ventasChart']);
+        Route::get('/dashboard/top-productos', [DashboardController::class, 'topProductos']);
+        Route::get('/dashboard/alertas', [DashboardController::class, 'alertas']);
         
         // Productos
-        Route::apiResource('productos', \App\Http\Controllers\ProductoController::class);
+        Route::apiResource('productos', ProductoController::class);
+        Route::get('/productos/stats/resumen', [ProductoController::class, 'stats']);
         
-        // Ventas
-        Route::apiResource('ventas', \App\Http\Controllers\VentaController::class);
+        // Categorías
+        Route::apiResource('categorias', CategoriaController::class);
         
         // Clientes
-        Route::apiResource('clientes', \App\Http\Controllers\ClienteController::class);
+        Route::apiResource('clientes', ClienteController::class);
+        Route::get('/clientes/stats/resumen', [ClienteController::class, 'stats']);
+        
+        // Ventas
+        Route::apiResource('ventas', VentaController::class);
+        Route::post('/ventas/{id}/cancelar', [VentaController::class, 'cancelar']);
+        Route::get('/ventas/stats/resumen', [VentaController::class, 'stats']);
+        Route::get('/ventas/stats/top-productos', [VentaController::class, 'topProductos']);
         
         // Configuración
         Route::get('/settings', function () {
@@ -99,7 +110,9 @@ Route::middleware(['tenant'])->group(function () {
         
         Route::middleware(['rubro:distribuidora'])->group(function () {
             Route::apiResource('rutas', \App\Http\Controllers\RutaController::class);
-            Route::get('/clientes/{cliente}/precios', [\App\Http\Controllers\ClienteController::class, 'listaPrecios']);
+            Route::get('/clientes/{cliente}/precios', [
+                \App\Http\Controllers\ClienteController::class, 'listaPrecios'
+            ]);
         });
         
     });

@@ -43,21 +43,73 @@ Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-// Rutas protegidas
-Route::middleware('auth')->group(function () {
-    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+// Rutas protegidas del panel administrativo
+Route::middleware(['auth', 'tenant'])->group(function () {
     
-    // Placeholder routes - se implementarán después
-    Route::get('/categorias', function() { return view('pages.categorias'); })->name('categorias.index');
-    Route::get('/productos', function() { return view('pages.productos'); })->name('productos.index');
-    Route::get('/aumento-masivo-precios', function() { return view('pages.aumento-masivo'); })->name('aumento-masivo.index');
-    Route::get('/proveedores', function() { return view('pages.proveedores'); })->name('proveedores.index');
-    Route::get('/clientes', function() { return view('pages.clientes'); })->name('clientes.index');
-    Route::get('/cajas', function() { return view('pages.cajas'); })->name('cajas.index');
-    Route::get('/cuentas-corrientes', function() { return view('pages.cuentas-corrientes'); })->name('cuentas-corrientes.index');
-    Route::get('/deudas-clientes', function() { return view('pages.deudas-clientes'); })->name('deudas-clientes.index');
-    Route::get('/movimientos-stock', function() { return view('pages.movimientos-stock'); })->name('movimientos-stock.index');
-    Route::get('/ventas', function() { return view('pages.ventas'); })->name('ventas.index');
-    Route::get('/ventas/{id}', function($id) { return view('pages.venta-detalle', ['id' => $id]); })->name('ventas.show');
-    Route::get('/cheques', function() { return view('pages.cheques'); })->name('cheques.index');
+    // Dashboard
+    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index']);
+    
+    // Productos
+    Route::get('/productos', function() { 
+        return view('pages.productos.index'); 
+    })->name('productos.index');
+    
+    // Categorías
+    Route::get('/categorias', function() { 
+        return view('pages.categorias.index'); 
+    })->name('categorias.index');
+    
+    // Clientes
+    Route::get('/clientes', function() { 
+        return view('pages.clientes.index'); 
+    })->name('clientes.index');
+    
+    // Proveedores
+    Route::get('/proveedores', function() { 
+        return view('pages.proveedores.index'); 
+    })->name('proveedores.index');
+    
+    // Ventas
+    Route::get('/ventas', function() { 
+        return view('pages.ventas.index'); 
+    })->name('ventas.index');
+    
+    Route::get('/ventas/pos', function() { 
+        return view('pages.ventas.pos'); 
+    })->name('ventas.pos');
+    
+    Route::get('/ventas/{id}', function($id) { 
+        return view('pages.ventas.show', ['id' => $id]); 
+    })->name('ventas.show');
+    
+    // Cajas
+    Route::get('/cajas', function() { 
+        return view('pages.cajas.index'); 
+    })->name('cajas.index');
+    
+    // Cuentas Corrientes
+    Route::get('/cuentas-corrientes', function() { 
+        return view('pages.cuentas-corrientes.index'); 
+    })->name('cuentas-corrientes.index');
+    
+    // Deudas de Clientes
+    Route::get('/deudas-clientes', function() { 
+        return view('pages.deudas-clientes.index'); 
+    })->name('deudas-clientes.index');
+    
+    // Movimientos de Stock
+    Route::get('/movimientos-stock', function() { 
+        return view('pages.movimientos-stock.index'); 
+    })->name('movimientos-stock.index');
+    
+    // Aumento Masivo de Precios
+    Route::get('/aumento-masivo-precios', function() { 
+        return view('pages.aumento-masivo.index'); 
+    })->name('aumento-masivo.index');
+    
+    // Cheques
+    Route::get('/cheques', function() { 
+        return view('pages.cheques.index'); 
+    })->name('cheques.index');
 });
