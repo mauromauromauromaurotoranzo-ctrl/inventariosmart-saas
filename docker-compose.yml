@@ -66,8 +66,8 @@ services:
     environment:
       MYSQL_DATABASE: inventario_db
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_PASSWORD: root
       MYSQL_USER: inventario_user
+      MYSQL_PASSWORD: root
       SERVICE_TAGS: prod
       SERVICE_NAME: mysql
     volumes:
