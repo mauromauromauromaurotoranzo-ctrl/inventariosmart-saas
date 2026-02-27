@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\CategoriaController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\VentaController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\ProveedorController;
 
 /*
 |--------------------------------------------------------------------------
@@ -79,6 +80,10 @@ Route::middleware(['tenant'])->group(function () {
         // Clientes
         Route::apiResource('clientes', ClienteController::class);
         Route::get('/clientes/stats/resumen', [ClienteController::class, 'stats']);
+        
+        // Proveedores
+        Route::apiResource('proveedores', ProveedorController::class);
+        Route::get('/proveedores/stats/resumen', [ProveedorController::class, 'stats']);
         
         // Ventas
         Route::apiResource('ventas', VentaController::class);
