@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('subscriptions', function (Blueprint $table) {
             $table->string('id')->primary();
-            $table->foreignId('tenant_id')->constrained()->onDelete('cascade');
+            $table->string('tenant_id'); // Sin foreign key, referencia a tabla en otra BD
             $table->string('stripe_subscription_id');
             $table->string('stripe_customer_id');
             $table->string('plan');
@@ -20,6 +20,7 @@ return new class extends Migration
             $table->timestamp('canceled_at')->nullable();
             $table->timestamps();
 
+            $table->index('tenant_id');
             $table->index('stripe_subscription_id');
             $table->index('status');
         });

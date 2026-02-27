@@ -91,6 +91,9 @@ docker-compose $COMPOSE_FILES exec -T db mysql -u root -p"${DB_PASSWORD:-root}" 
 
 echo ""
 echo -e "${BLUE}🗄️  Paso 6/8: Ejecutando migraciones...${NC}"
+echo "   → Migraciones del sistema (landlord)..."
+docker_exec php artisan migrate --path=database/migrations/landlord --force
+echo "   → Migraciones de tenants..."
 docker_exec php artisan migrate --force
 
 echo ""
