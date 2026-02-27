@@ -1,164 +1,135 @@
 #!/bin/bash
 
-# Script de despliegue para Inventario Inteligente
-# Uso: ./deploy.sh [produccion|desarrollo]
+# Script de despliegue para InventarioSmart SaaS
+# Soporta entornos: desarrollo, produccion
 
-set -e  # Salir si hay algún error
+set -e
 
-# Colores para output
+# Colores
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Función para imprimir mensajes
-print_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
+ENV=${1:-desarrollo}
 
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# Determinar modo de despliegue
-MODE=${1:-produccion}
-
-if [ "$MODE" != "produccion" ] && [ "$MODE" != "desarrollo" ]; then
-    print_error "Modo inválido. Usa: produccion o desarrollo"
+if [ "$ENV" != "desarrollo" ] && [ "$ENV" != "produccion" ]; then
+    echo -e "${RED}Error: Entorno no válido${NC}"
+    echo "Uso: $0 [desarrollo|produccion]"
     exit 1
 fi
 
-print_info "Iniciando despliegue en modo: $MODE"
+echo -e "${BLUE}🚀 Desplegando InventarioSmart SaaS - $ENV${NC}"
+echo ""
 
-# Verificar que Docker está corriendo
-if ! docker info > /dev/null 2>&1; then
-    print_error "Docker no está corriendo. Por favor inicia Docker."
+# Verificar archivos necesarios
+if [ ! -f ".env" ]; then
+    echo -e "${YELLOW}⚠️  Archivo .env no encontrado${NC}"
+    echo "Creando desde .env.example..."
+    cp .env.example .env
+    echo -e "${RED}❗ IMPORTANTE: Edita el archivo .env con tus configuraciones${NC}"
     exit 1
 fi
 
-# Verificar que docker-compose está instalado
-if ! command -v docker-compose &> /dev/null; then
-    print_error "docker-compose no está instalado."
-    exit 1
-fi
-
-# Verificar que existe el archivo .env
-if [ ! -f .env ]; then
-    print_warning "Archivo .env no encontrado. Creando desde .env.example..."
-    if [ -f .env.example ]; then
-        cp .env.example .env
-        print_warning "Por favor configura el archivo .env antes de continuar."
-        exit 1
-    else
-        print_error "No existe .env ni .env.example"
-        exit 1
-    fi
-fi
-
-# Configurar comandos según el modo
-if [ "$MODE" = "produccion" ]; then
-    COMPOSE_CMD="docker-compose -f docker-compose.yml -f docker-compose.prod.yml"
-    print_info "Usando configuración de producción"
+# Determinar archivos docker-compose
+if [ "$ENV" = "produccion" ]; then
+    COMPOSE_FILES="-f docker-compose.yml -f docker-compose.prod.yml"
+    echo -e "${YELLOW}🔒 Modo Producción${NC}"
 else
-    COMPOSE_CMD="docker-compose"
-    print_info "Usando configuración de desarrollo"
+    COMPOSE_FILES="-f docker-compose.yml -f docker-compose.override.yml"
+    echo -e "${GREEN}🔧 Modo Desarrollo${NC}"
 fi
 
-# Paso 1: Detener contenedores existentes
-print_info "Deteniendo contenedores existentes..."
-$COMPOSE_CMD down
+# Función para ejecutar comandos docker
+docker_exec() {
+    docker-compose $COMPOSE_FILES exec -T app "$@"
+}
 
-# Paso 2: Construir imágenes (solo si es necesario)
-print_info "Construyendo imágenes Docker..."
-$COMPOSE_CMD build --no-cache app
+echo ""
+echo -e "${BLUE}📦 Paso 1/8: Construyendo contenedores...${NC}"
+docker-compose $COMPOSE_FILES build --no-cache
 
-# Paso 3: Iniciar servicios
-print_info "Iniciando servicios..."
-$COMPOSE_CMD up -d
+echo ""
+echo -e "${BLUE}🚀 Paso 2/8: Iniciando servicios...${NC}"
+docker-compose $COMPOSE_FILES up -d
 
-# Esperar a que los servicios estén listos
-print_info "Esperando a que los servicios estén listos..."
+# Esperar a que la base de datos esté lista
+echo ""
+echo -e "${BLUE}⏳ Paso 3/8: Esperando base de datos...${NC}"
 sleep 10
 
-# Verificar que el contenedor app está corriendo
-if ! $COMPOSE_CMD ps app | grep -q "Up"; then
-    print_error "El contenedor app no está corriendo. Revisa los logs:"
-    $COMPOSE_CMD logs app --tail=50
-    exit 1
+# Verificar conexión a BD
+MAX_RETRIES=30
+RETRY_COUNT=0
+while ! docker-compose $COMPOSE_FILES exec -T db mysqladmin ping -h localhost -u root -p"${DB_PASSWORD:-root}" --silent 2>/dev/null; do
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+        echo -e "${RED}❌ Timeout esperando base de datos${NC}"
+        exit 1
+    fi
+    echo "Intento $RETRY_COUNT/$MAX_RETRIES..."
+    sleep 2
+done
+echo -e "${GREEN}✅ Base de datos lista${NC}"
+
+echo ""
+echo -e "${BLUE}📥 Paso 4/8: Instalando dependencias...${NC}"
+docker_exec composer install --no-interaction --prefer-dist --optimize-autoloader
+
+echo ""
+echo -e "${BLUE}🔑 Paso 5/8: Configurando aplicación...${NC}"
+
+# Generar key si no existe
+if ! grep -q "APP_KEY=base64" .env; then
+    docker_exec php artisan key:generate --force
+    echo -e "${GREEN}✅ APP_KEY generado${NC}"
 fi
 
-# Paso 4: Instalar dependencias de Composer
-print_info "Instalando dependencias de Composer..."
-$COMPOSE_CMD exec -T app composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+# Crear base de datos landlord si no existe
+docker-compose $COMPOSE_FILES exec -T db mysql -u root -p"${DB_PASSWORD:-root}" -e "CREATE DATABASE IF NOT EXISTS ${DB_DATABASE:-inventario_landlord} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
 
-# Paso 5: Verificar que vendor/autoload.php existe
-if ! $COMPOSE_CMD exec -T app test -f /var/www/vendor/autoload.php; then
-    print_error "vendor/autoload.php no existe después de composer install"
-    exit 1
-fi
-print_info "✓ Dependencias instaladas correctamente"
+echo ""
+echo -e "${BLUE}🗄️  Paso 6/8: Ejecutando migraciones...${NC}"
+docker_exec php artisan migrate --force
 
-# Paso 6: Configurar permisos
-print_info "Configurando permisos..."
-# Para volúmenes montados, ejecutar como root usando docker exec directamente
-CONTAINER_NAME=$($COMPOSE_CMD ps -q app)
-if [ ! -z "$CONTAINER_NAME" ]; then
-    docker exec -u root $CONTAINER_NAME sh -c "chmod -R 775 /var/www/storage /var/www/bootstrap/cache || true"
-    docker exec -u root $CONTAINER_NAME sh -c "chown -R www:www /var/www/storage /var/www/bootstrap/cache || true"
+echo ""
+echo -e "${BLUE}🌱 Paso 7/8: Ejecutando seeders...${NC}"
+docker_exec php artisan db:seed --force --class=LandlordSeeder 2>/dev/null || echo "Seeders opcionales no encontrados"
+
+echo ""
+echo -e "${BLUE}⚡ Paso 8/8: Optimizando...${NC}"
+docker_exec php artisan config:cache
+docker_exec php artisan route:cache
+docker_exec php artisan view:cache
+
+# Permisos
+docker-compose $COMPOSE_FILES exec -T app chown -R www:www storage bootstrap/cache 2>/dev/null || true
+docker-compose $COMPOSE_FILES exec -T app chmod -R 775 storage bootstrap/cache 2>/dev/null || true
+
+echo ""
+echo -e "${GREEN}✅ Despliegue completado!${NC}"
+echo ""
+
+if [ "$ENV" = "produccion" ]; then
+    echo "📋 Información de acceso:"
+    echo "   Landing: http://localhost:8000"
+    echo ""
+    echo "🎯 Próximos pasos:"
+    echo "   1. Configurar DNS wildcard (*.tudominio.com)"
+    echo "   2. Configurar SSL/TLS"
+    echo "   3. Crear tu primer tenant:"
+    echo "      ./crear-tenant.sh miempresa 'Mi Empresa' admin@miempresa.com password123"
+    echo ""
+    echo "📖 Documentación completa en README.md"
 else
-    print_warning "No se pudo obtener el nombre del contenedor, saltando configuración de permisos"
+    echo "📋 Información de acceso:"
+    echo "   Landing: http://localhost:8000"
+    echo "   Mailpit: http://localhost:8025"
+    echo ""
+    echo "🎯 Para crear un tenant de prueba:"
+    echo "   ./crear-tenant.sh demo 'Demo Company' admin@demo.com password123"
 fi
 
-# Paso 7: Ejecutar migraciones
-print_info "Ejecutando migraciones..."
-$COMPOSE_CMD exec -T app php artisan migrate --force
-
-# Paso 8: Limpiar cachés
-print_info "Limpiando cachés..."
-$COMPOSE_CMD exec -T app php artisan config:clear
-$COMPOSE_CMD exec -T app php artisan cache:clear
-$COMPOSE_CMD exec -T app php artisan route:clear
-$COMPOSE_CMD exec -T app php artisan view:clear
-
-# Paso 9: Optimizar para producción (solo en modo producción)
-if [ "$MODE" = "produccion" ]; then
-    print_info "Optimizando para producción..."
-    $COMPOSE_CMD exec -T app php artisan config:cache
-    $COMPOSE_CMD exec -T app php artisan route:cache
-    $COMPOSE_CMD exec -T app php artisan view:cache
-fi
-
-# Paso 10: Verificar estado de los servicios
-print_info "Verificando estado de los servicios..."
-$COMPOSE_CMD ps
-
-# Paso 11: Mostrar logs recientes
-print_info "Últimos logs del contenedor app:"
-$COMPOSE_CMD logs app --tail=20
-
-# Paso 12: Verificar que la aplicación responde
-print_info "Verificando que la aplicación responde..."
-sleep 3
-if curl -f http://localhost:8000 > /dev/null 2>&1; then
-    print_info "✓ La aplicación está respondiendo en http://localhost:8000"
-else
-    print_warning "La aplicación no responde en http://localhost:8000. Revisa los logs."
-fi
-
-print_info ""
-print_info "=========================================="
-print_info "Despliegue completado!"
-print_info "=========================================="
-print_info ""
-print_info "Accede a la aplicación en: http://localhost:8000"
-print_info ""
-print_info "Comandos útiles:"
-print_info "  Ver logs: $COMPOSE_CMD logs -f"
-print_info "  Detener: $COMPOSE_CMD down"
-print_info "  Reiniciar: $COMPOSE_CMD restart"
-print_info "  Acceder al contenedor: $COMPOSE_CMD exec app sh"
-print_info ""
+echo ""
+echo -e "${BLUE}🚀 InventarioSmart SaaS está listo!${NC}"
